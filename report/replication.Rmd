@@ -1,0 +1,139 @@
+---
+title: "Does AI help humans make better decisions? — MCMC-first Replication"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(aihuman)
+library(dplyr)
+library(coda)
+if (!dir.exists("../figures")) dir.create("../figures", recursive = TRUE)
+```
+
+# MCMC on synthetic data
+
+```{r}
+# Load synthetic data
+data("synth", package = "aihuman")
+
+
+
+
+# Prefer loading a saved MCMC result to keep knitting fast/reproducible.
+# If you don't have it yet, run once in the Console and saveRDS().
+if (file.exists("out_fit_mcmc_synth_full.rds")) {
+  fit_mcmc_full <- readRDS("out_fit_mcmc_synth_full.rds")
+} else {
+  set.seed(42)
+  fit_mcmc_full <- AiEvalmcmc(data = synth, n.mcmc = 2000, out.length = 200, verbose = FALSE)
+  saveRDS(fit_mcmc_full, "out_fit_mcmc_synth_full.rds")
+}
+
+# Safe summaries (these DO work on mcmc objects)
+summary(fit_mcmc_full)
+# Optional: effective sample sizes
+# effectiveSize(fit_mcmc_full)
+
+# Optional: write diagnostics to a PDF (avoid interactive plotting during knit)
+# pdf("../figures/mcmc_diagnostics.pdf", width=12, height=8); plot(fit_mcmc_full); dev.off()
+
+
+
+```
+
+# AIPW on interim PSA data (illustration)
+
+```{r}
+# Prepare variables
+Z <- aihuman::NCAdata$Z
+D <- ifelse(aihuman::NCAdata$D == 0, 0, 1)
+A <- aihuman::PSAdata$DMF
+Y <- aihuman::NCAdata$Y
+
+cov_mat <- aihuman::NCAdata %>%
+  dplyr::select(-c(Y, D, Z)) %>%
+  dplyr::bind_cols(
+    FTAScore = aihuman::PSAdata$FTAScore,
+    NCAScore = aihuman::PSAdata$NCAScore,
+    NVCAFlag = aihuman::PSAdata$NVCAFlag
+  ) %>%
+  as.matrix()
+
+# Fit nuisance functions for AIPW (decision/outcome/propensity components)
+nuis_func <- compute_nuisance_functions(
+  Y = Y, D = D, Z = Z, V = cov_mat,
+  shrinkage = 0.01, n.trees = 1000
+)
+
+# Human+AI vs Human (overall + subgroup-ready)
+race   <- ifelse(aihuman::NCAdata$White == 1, "White", "Non-white")
+gender <- ifelse(aihuman::NCAdata$Sex   == 1, "Male",  "Female")
+
+p_hai <- plot_diff_human_aipw(
+  Y = Y, D = D, Z = Z,
+  nuis_funcs = nuis_func,
+  l01 = 1,                                 # FP:FN cost ratio
+  true.pscore = rep(0.5, length(D)),
+  subgroup1 = race, subgroup2 = gender,    
+  label.subgroup1 = "Race",
+  label.subgroup2 = "Gender",
+  x.order = c("Overall","Non-white","White","Female","Male"),  
+  p.title = NULL                
+)
+p_hai
+
+
+# Optionally save for GitHub
+# ggsave("../figures/human_plus_ai_vs_human.png", p_hai, width = 7, height = 4, dpi = 300)
+
+# Agreement table (who agrees/disagrees with whom)
+tab_agree <- table_agreement(
+  Y = Y, D = D, Z = Z, A = A,
+  subgroup1 = race, subgroup2 = gender,
+  label.subgroup1 = "Race", label.subgroup2 = "Gender"
+)
+
+knitr::kable(tab_agree, caption = "Agreement table: Human vs AI vs Human+AI")
+
+```
+# Assume apce_ipw <- CalAPCEipw(data = synth)
+
+```{r apce, message=FALSE, warning=FALSE}
+# Recalculate IPW APCE object
+
+library(kableExtra)  # for styling
+
+
+data("synth", package = "aihuman")
+apce_ipw <- CalAPCEipw(data = synth)
+print(names(apce_ipw))
+
+
+str(apce_ipw)
+
+
+# Convert APCE list into a data frame and label rows/cols
+apce_tbl <- as.data.frame(apce_ipw$APCE)
+rownames(apce_tbl) <- paste0("Decision D=", seq_len(nrow(apce_tbl)) - 1)
+colnames(apce_tbl) <- paste0("Risk R=",     seq_len(ncol(apce_tbl)) - 1)
+
+# Pretty table for the report/GitHub
+knitr::kable(
+  apce_tbl,
+  caption = "APCE (IPW): Average misclassification effect across systems",
+  digits = 4,
+  align  = "c"
+) |>
+  kableExtra::kable_styling(
+    bootstrap_options = c("striped","hover"),
+    full_width = FALSE,
+    position   = "center"
+  )
+
+```
