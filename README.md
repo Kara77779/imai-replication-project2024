@@ -12,16 +12,16 @@ To gain hands-on experience with MCMC estimation, Inverse Probability Weighting 
 
 # Repository structure
 README.md
-scripts/
-- 00_install.R # Robust installation (CRAN → r-universe → GitHub fallback)
-- 10_quick_mcmc_synth.R # MCMC route on synthetic data (saves RDS)
-- 20_psa_aipw.R # AIPW route on interim PSA data (illustration only)
-- 30_policy_learning.R # Policy learning (Δloss weights, l01, monotone policy via Gurobi)
-report/
-- replication.Rmd # R Markdown source
-- replication.html # Rendered one-click report
-figures/
-- mcmc_diagnostics.pdf # Exported figures (diagnostics, preference regions, etc.)
+-scripts/
+00_install.R # Robust installation (CRAN → r-universe → GitHub fallback)
+10_quick_mcmc_synth.R # MCMC route on synthetic data (saves RDS)
+20_psa_aipw.R # AIPW route on interim PSA data (illustration only)
+30_policy_learning.R # Policy learning (Δloss weights, l01, monotone policy via Gurobi)
+-report/
+replication.Rmd # R Markdown source
+replication.html # Rendered one-click report
+-figures/
+mcmc_diagnostics.pdf # Exported figures (diagnostics, preference regions, etc.)
 
 
 # 📊 What the report shows
